@@ -1,0 +1,14 @@
+{
+  "name": "song2karaoke",
+  "owner": {
+    "name": "Yanjun Qi"
+  },
+  "description": "Claude Code plugin: song recording to karaoke lyric video and jianpu (简谱) scores, with music/lyric sync checks.",
+  "plugins": [
+    {
+      "name": "song2karaoke",
+      "source": "./",
+      "description": "Song recording to karaoke video plus jianpu scores, with sync checks."
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "song2karaoke",
+  "version": "0.2.0",
+  "description": "Turn a song recording (solo or duet, built with Mandarin pop in mind) into a karaoke package: separated vocals and backing track, per-singer MIDI and MusicXML, a per-character karaoke lyric video, and jianpu (简谱) scores, then check that music and lyrics are in sync.",
+  "author": {
+    "name": "Yanjun Qi"
+  },
+  "homepage": "https://github.com/qiyanjun/song2karaoke-skill",
+  "repository": "https://github.com/qiyanjun/song2karaoke-skill",
+  "license": "MIT",
+  "keywords": ["karaoke", "lyrics", "jianpu", "music-transcription", "demucs", "basic-pitch", "whisper", "mandarin"]
+}

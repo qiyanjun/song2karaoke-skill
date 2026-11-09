@@ -1,0 +1,15 @@
+# Python 3.11 recommended (basic-pitch is sensitive to newer versions)
+basic-pitch[onnx]
+setuptools<81
+demucs
+faster-whisper
+music21
+pretty_midi
+librosa
+scipy
+soundfile
+scikit-learn
+numpy
+matplotlib
+pillow
+pypdf

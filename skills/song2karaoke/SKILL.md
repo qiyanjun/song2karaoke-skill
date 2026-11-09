@@ -1,7 +1,7 @@
 ---
 name: song2karaoke
-description: Turn a song recording (mp3/wav, solo or duet, especially Chinese/Mandarin pop) into a karaoke package - separated vocal and backing tracks, per-singer MIDI and MusicXML, a lyric video with per-character karaoke highlighting coloured by singer, and jianpu (简谱 numbered notation) PDFs for each singer and a two-part (二声部) score - then verify that music and lyrics are in sync. Use this whenever the user wants to make karaoke or a lyric video from a song, extract vocals or accompaniment (伴奏), transcribe a melody or duet into MIDI or jianpu, add timed lyrics to a song, or check or fix lyric timing in an existing karaoke video or score (missing lines, lyrics early or late, a wrong glyph, regenerating the PDF after a lyric fix), even if they do not say "karaoke".
-argument-hint: "<song.mp3|wav|folder> [lyrics.txt] [check|fix <what>]"
+description: Turn a song recording (mp3/wav, solo or duet, especially Chinese/Mandarin pop) into a karaoke package - separated vocal and backing tracks, per-singer MIDI and MusicXML, a lyric video with per-character karaoke highlighting coloured by singer, and sheet music for each singer and a two-part (二声部) score in jianpu (简谱 numbered notation), staff notation (五线谱 five-line), or both - then verify that music and lyrics are in sync. Use this whenever the user wants to make karaoke or a lyric video from a song, extract vocals or accompaniment (伴奏), transcribe a melody or duet into MIDI, jianpu or staff notation / sheet music, add timed lyrics to a song, or check or fix lyric timing in an existing karaoke video or score (missing lines, lyrics early or late, a wrong glyph, regenerating the PDF after a lyric fix), even if they do not say "karaoke".
+argument-hint: "<song.mp3|wav|folder> [lyrics.txt] [--score jianpu|staff|both] [check|fix <what>]"
 ---
 
 # song2karaoke
@@ -13,6 +13,7 @@ Arguments: `$ARGUMENTS`
 - **A song file (+ optional lyrics file):** run the full pipeline below on it. Outputs go next to the song, intermediates in `temp/`.
   - With no lyrics file, ask the user for the lyrics (plain or `M:SS`-timed) before step 6. Steps 1–5 can run meanwhile.
   - Ask before step 1 whether there are one or two singers, unless the pitch histogram in step 2 makes it obvious.
+  - **Score format:** `--score jianpu|staff|both` picks it. If it is not given, ask the user once, alongside the questions above. Offer: jianpu (简谱, numbered), staff (五线谱, five-line), or both. Default to both if they don't mind.
 - **A folder that already holds a package** (a `*_karaoke*.mp4` plus `temp/lyric_times_full.json`), or a `check` argument: run the Verification section only and report.
 - **`fix <what>`** (e.g. `fix the last chorus repeat is missing`): follow "Editing an existing package".
 - **No arguments:** ask which song or folder to work on.
@@ -24,7 +25,8 @@ Takes one song file plus the user's lyrics and produces:
 | `<song>_vocals_only.wav`, `<song>_background.wav` | demucs htdemucs (two stems) |
 | `singer1.mid`, `singer2.mid`, `two_singers.mid`, `two_singers.musicxml` | basic-pitch, then the singer split, then clean-up |
 | `<song>_karaoke.mp4` | `lyric_video.py`: backing track + per-character wipe, coloured by singer |
-| `<song>_singer{1,2}_jianpu.pdf`, `<song>_two_part_jianpu.pdf` | `jianpu.py` / `choir.py` with the lyrics under the notes |
+| `<song>_singer{1,2}_jianpu.pdf`, `<song>_two_part_jianpu.pdf` | `jianpu.py` / `choir.py`: jianpu (简谱) with the lyrics under the notes |
+| `<song>_singer{1,2}_staff.pdf`, `<song>_two_part_staff.pdf` (+ `.musicxml`) | `staff.py`: staff notation (五线谱), same lyric placement as the jianpu |
 | `run_log.md` | you: what was done, the check results, the user's decisions, backups |
 
 All scripts are in `scripts/` next to this file (call it `$K`). Each script starts with its usage.
@@ -43,11 +45,16 @@ Use a dedicated venv (Python 3.11; basic-pitch is fussy about versions):
 
 ```bash
 uv venv -q -p 3.11 $VENV && VIRTUAL_ENV=$VENV uv pip install -q 'basic-pitch[onnx]' 'setuptools<81' demucs \
-    music21 soundfile librosa pretty_midi scikit-learn matplotlib pillow faster-whisper pypdf
+    music21 soundfile librosa pretty_midi scikit-learn matplotlib pillow faster-whisper pypdf \
+    verovio resvg-py pypdfium2
 ```
+(`requirements.txt` at the repo root has the same list.)
 
 - **faster-whisper with a newer PyAV** fails with `open() got an unexpected keyword argument 'metadata_errors'`. Decode to 16 kHz float32 yourself and pass the array: `ffmpeg -i v.wav -ar 16000 -ac 1 -f f32le v16.f32`, then `np.fromfile(path, np.float32)`.
 - **Fonts (macOS):** `choir.py` and `jianpu.py` use Songti for CJK, and `lyric_video.py` uses Hiragino Sans GB. Hiragino has no ♪, which shows as a crossed box, so the video draws ♪ with Apple Symbols. On other systems, change the font paths at the top of those scripts and check a frame.
+- **Staff engraving:** music21 builds the score, Verovio draws the notation, resvg renders it, and Pillow saves the PDF. Everything installs with pip; MuseScore and LilyPond are not needed.
+  - Don't convert Verovio's SVG with PyMuPDF or cairosvg: PyMuPDF draws it wrong, and cairosvg needs the system Cairo library. `verify_score.py` rasterizes PDFs with pypdfium2.
+  - Verovio measures lyric width with Latin font metrics, so CJK lyrics would collide on fast notes. `staff.py` pads them with no-break spaces in a copy used only for rendering; the exported MusicXML stays clean.
 - Needs `ffmpeg` and `ffprobe`.
 
 ## Pipeline
@@ -68,9 +75,16 @@ Work in `<songdir>/temp/` for intermediates. Final deliverables go in `<songdir>
    - Run `asr_words.py vocals.wav lyrics_plain.txt words.json`.
    - Then `align_timed.py words.json lyrics_timed.txt vocals.wav lyric_times_full.json`. This gives the time of every character, placed by Whisper where it matched and by vocal onsets elsewhere. Its log says which method placed each phrase.
 7. **Video:** `lyric_video.py lyric_times_full.json singer1.mid singer2.mid background.wav out.mp4 TITLE`. Pass `-` for `singer2.mid` on a solo song. It takes about 15 s for a 5-minute song.
-8. **Jianpu:**
-   - Per singer: `jianpu.py singerN.mid out_prefix TITLE SUBTITLE TONIC_MIDI KEY_LABEL 2 lyric_times_full.json`.
-   - Two-part: `choir.py singer2.mid singer1.mid lyric_times_full.json out_prefix TITLE "Singer 2" "Singer 1" "♭E"`. The upper staff is the higher voice. The key label also decides which octave gets plain digits.
+8. **Scores**, in the format the user chose:
+   - **Jianpu (简谱):**
+     - Per singer: `jianpu.py singerN.mid out_prefix TITLE SUBTITLE TONIC_MIDI KEY_LABEL 2 lyric_times_full.json`.
+     - Two-part: `choir.py singer2.mid singer1.mid lyric_times_full.json out_prefix TITLE "Singer 2" "Singer 1" "♭E"`. The upper row is the higher voice. The key label also decides which octave gets plain digits.
+   - **Staff (五线谱):**
+     - Per singer: `staff.py lyric_times_full.json out_prefix TITLE "♭E" singerN.mid=Singer`.
+     - Two-part: `staff.py lyric_times_full.json out_prefix TITLE "♭E" "singer2.mid=Singer 2" "singer1.mid=Singer 1"`.
+     - Writes `out_prefix.pdf`, page PNGs and `out_prefix.musicxml` (opens in MuseScore, Finale or Dorico).
+     - A voice whose median pitch is below middle C gets a treble-8vb clef. Stretches of 2+ bars where every part rests become one multi-bar rest.
+   - Use the same `lyric_times_full.json` and key for both formats. Their lyric placement is identical, so the checks agree.
 9. **Verify** (next section), then fill in `run_log.md`.
 
 ## Verification
@@ -83,14 +97,27 @@ Run checks after every render, not just at the end. A lyric change touches three
 - GAPS: see the ground rule on repeats. Short "啊"s and backing-vocal bleed are fine to leave. A gap of a few seconds right next to a line is usually its long held last note or the run-up to it, not a missing lyric. A gap of 5 s or more that is clear of any line is the kind worth transcribing.
 - Then look at frames: `ffmpeg -ss T -i out.mp4 -frames:v 1 f.png` at a few lyric times, at an instrumental break (♪ must render), and at every line you changed. Read the images.
 
-**Score:** render with `DUMP=new.json python choir.py ...`. If you are revising, also dump the old score from the old timings to `old.json`. Then `check_score.py new.json lyric_times_full.json [old.json]`:
-- notes identical, lyric changes only where you edited, lines complete, chars placed, and distances
-- a pixel diff per page PNG: only the pages you meant to change should differ
-- render twice and confirm identical output
-- the PDF opens and has the expected page count (pypdf)
-- then read the changed pages by eye
+**Score:** run `verify_score.py` for every score you make or revise, in either format. It runs the whole check list as numbered PASS/FAIL checks:
 
-If the user asks for repeated or extra checking ("check 10 times"), run each check as a separate numbered test with PASS/FAIL. Put them in a table in `run_log.md`.
+```bash
+python verify_score.py --render "python $K/choir.py s2.mid s1.mid {LYR} {OUT} TITLE 'Singer 2' 'Singer 1' ♭E" \
+    --lyrics lyric_times_full.json \
+    [--old-lyrics OLD_lyric_times.json --current CURRENT.pdf] [--install DEST.pdf] --log run_log.md
+```
+
+- `{LYR}` and `{OUT}` are filled in by the script. The same call works with `jianpu.py ... {OUT} ... {LYR}` and `staff.py {LYR} {OUT} ...`.
+- **Checks:**
+  - the current PDF is reproduced exactly from the old lyrics
+  - the render succeeds, and the PDF opens as A4
+  - a second render is identical
+  - the notes are unchanged, and it lists which pages changed
+  - lyrics are in order, every line is complete, every character is placed, and character-to-note distances
+  - with `--install`: a backup, then a byte-for-byte check of the installed copy
+- The results table is appended to `run_log.md`.
+- A single-singer score is only expected to carry the lines that singer sings; the rest are reported as "not sung in this score".
+- **Then read the changed pages by eye.** The script lists them. Look for overlapping lyrics, wrong clefs or accidentals, and lyrics under the wrong notes.
+
+If the user asks for repeated or extra checking ("check 10 times"), this table is the answer: report each numbered check, and add the by-eye read as a final numbered check.
 
 **Explaining a failed check:** say whether this change caused it. Compare against the backup: a problem that is identical in the old output is pre-existing. A score lyric that is > 0.5 s off usually means that singer's MIDI has no note there, and fixing it means editing notes, not lyrics.
 

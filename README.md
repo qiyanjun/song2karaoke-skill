@@ -7,7 +7,7 @@ Give it an mp3 or wav (solo or duet) and the lyrics. It produces:
 - **Vocals and backing track:** separated with [demucs](https://github.com/facebookresearch/demucs) (htdemucs).
 - **Per-singer MIDI and MusicXML:** notes from [basic-pitch](https://github.com/spotify/basic-pitch). Duets are split between the two singers by voice timbre and pitch.
 - **A karaoke lyric video:** the backing track plays while each character fills in as it is sung, coloured by who sings it (singer 1, singer 2, or both).
-- **Jianpu (简谱) scores:** a PDF per singer and a two-part (二声部) score, with the lyrics under the notes.
+- **Sheet music in your choice of format:** jianpu (简谱, numbered notation), staff notation (五线谱, five-line), or both. You get a PDF per singer and a two-part (二声部) score, with the lyrics under the notes. Staff scores also come as MusicXML for MuseScore, Finale or Dorico.
 - **Sync checks:**
   - the video's audio against the original
   - each character's time against where the singing actually starts
@@ -26,7 +26,8 @@ It was built for Mandarin pop duets. The pipeline itself works for any language 
 Then run it as a slash command:
 
 ```text
-/song2karaoke ~/Music/duet.mp3 ~/Music/duet_lyrics.txt   # full pipeline
+/song2karaoke ~/Music/duet.mp3 ~/Music/duet_lyrics.txt   # full pipeline (asks: jianpu, staff or both)
+/song2karaoke ~/Music/duet.mp3 lyrics.txt --score staff  # staff notation only
 /song2karaoke ~/Music/duet/ check                        # verify an existing package
 /song2karaoke ~/Music/duet/ fix the last chorus repeat is missing
 ```
@@ -64,8 +65,8 @@ The skill's instructions are in [`skills/song2karaoke/SKILL.md`](skills/song2kar
 | Clean up | `clean_export.py` | octave fixes, MusicXML; `auto` key reports the major key (jianpu "1=") |
 | Lyric timing | `asr_words.py`, `align_timed.py` | Whisper is used **only for timing**; the text always comes from your lyrics |
 | Video | `lyric_video.py` | per-character wipe, singer colours, count-in dots; pass `-` as the second singer for a solo song |
-| Scores | `jianpu.py`, `choir.py` | single-part and two-part jianpu, with lyrics |
-| Verify | `check_sync.py`, `check_score.py` | music sync, timing against the vocals, missing lines, score lyric placement |
+| Scores | `jianpu.py`, `choir.py`, `staff.py` | single-part and two-part jianpu; staff notation via music21, Verovio and resvg (pip only, no MuseScore needed) |
+| Verify | `check_sync.py`, `verify_score.py` | video: music sync, timing against the vocals, missing lines. Scores: about 12 numbered PASS/FAIL checks (reproduce, determinism, notes unchanged, changed pages, lyric placement, safe install) |
 
 A few rules the skill follows:
 - **Lyric text comes from you, never from speech recognition.** Whisper mishears song lyrics and sometimes repeats its prompt text into the output.
@@ -79,4 +80,4 @@ This repository contains code only. Use it on recordings and lyrics you have the
 
 ## License
 
-MIT. Third-party tools keep their own licenses: demucs (MIT), basic-pitch (Apache-2.0), faster-whisper (MIT), music21 (BSD-3).
+MIT. Third-party tools keep their own licenses: demucs (MIT), basic-pitch (Apache-2.0), faster-whisper (MIT), music21 (BSD-3), Verovio (LGPL-3.0), resvg (Apache-2.0/MIT), pypdfium2 (Apache-2.0/BSD-3).

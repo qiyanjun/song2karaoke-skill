@@ -22,13 +22,22 @@ for i, pt in enumerate(new):
     print(f"order    {name(i)}: {ok(c)}"); fails += not c
 lines = {}
 for c in J: lines.setdefault(c["line"], []).append(c)
-miss = []
-for L in lines.values():
+# a line is expected only in parts that sing there (>= half as many notes as characters in its window);
+# a single-singer score is not expected to carry the other singer's solo lines
+def sings(pt, L): return sum(L[0]["t"] - 0.5 <= n["s"] <= L[-1]["t"] + 0.5 for n in pt) >= 0.5 * len(L)
+miss, skipped, sung = [], 0, set()
+for lid, L in lines.items():
     L = sorted(L, key=lambda c: c["pos"]); want = "".join(c["ch"] for c in L)
-    if not any(want in "".join(l for s, l in seq(pt) if L[0]["t"] - 1.5 <= s <= L[-1]["t"] + 1.5) for pt in new):
+    parts_here = [pt for pt in new if sings(pt, L)]
+    if not parts_here: skipped += 1; continue
+    sung.add(lid)
+    if not any(want in "".join(l for s, l in seq(pt) if L[0]["t"] - 1.5 <= s <= L[-1]["t"] + 1.5) for pt in parts_here):
         miss.append(f"{mm(L[0]['t'])} {want}")
-print(f"lines    {len(lines)-len(miss)}/{len(lines)} complete: {ok(not miss)}", *miss, sep="\n         " if miss else " ")
+n_exp = len(lines) - skipped
+print(f"lines    {n_exp-len(miss)}/{n_exp} complete: {ok(not miss)}" + (f" ({skipped} lines not sung in this score)" if skipped else ""),
+      *miss, sep="\n         " if miss else " ")
 fails += bool(miss)
+J = [c for c in J if c["line"] in sung]
 pool = [(s, ch) for pt in new for s, l in seq(pt) for ch in l]
 un, dist, far = [], [], []
 for c in J:

@@ -13,3 +13,6 @@ numpy
 matplotlib
 pillow
 pypdf
+verovio
+resvg-py
+pypdfium2

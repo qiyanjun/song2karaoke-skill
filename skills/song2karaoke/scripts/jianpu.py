@@ -1,5 +1,6 @@
 """Render a monophonic MIDI track as jianpu (numbered notation) PDF/PNG.
-usage: jianpu.py in.mid out_prefix title subtitle tonic_midi key_label
+usage: jianpu.py in.mid out_prefix title subtitle tonic_midi key_label [grid_16ths=2] [lyrics.json]
+  env DUMP=path.json: also write every note with its attached lyric (for check_score.py)
 """
 import sys, numpy as np, pretty_midi
 import matplotlib
@@ -89,6 +90,10 @@ if LYR:
             elif P is not None: P.ly += grp[i]['ch']; asg[i] = P      # no room: share the note
             elif Q is not None: Q.ly = grp[i]['ch'] + Q.ly; asg[i] = Q
         notes.sort(key=lambda n: n.start)
+
+import os
+if os.environ.get("DUMP"):   # every note with its lyric, for check_score.py / verify_score.py
+    json.dump([[{"s": n.start, "e": n.end, "p": n.pitch, "ly": n.ly} for n in notes]], open(os.environ["DUMP"], "w"), ensure_ascii=False)
 
 # ---- choose bar phase (downbeat) that best fits the onsets ----
 on = np.array([U(n.start) for n in notes]); en = np.array([U(n.end) for n in notes])
